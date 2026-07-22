@@ -14,3 +14,6 @@ equity_history.jsonl
 automation.log
 launchd_stdout.log
 launchd_stderr.log
+dashboard_refresh.log
+dashboardrefresh_stdout.log
+dashboardrefresh_stderr.log

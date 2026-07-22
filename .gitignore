@@ -9,3 +9,4 @@ venv/
 
 # Runtime output
 decisions.jsonl
+dashboard.html

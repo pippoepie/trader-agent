@@ -43,6 +43,22 @@ python run.py --execute   # actually places the order on Saxo SIM (or set EXECUT
 Every run appends a line to `decisions.jsonl` with the timestamp, the model's decision, and
 (if executed) the order result — use this as your audit trail.
 
+## 5. Dashboard
+
+```bash
+python dashboard.py
+open dashboard.html   # macOS; or just double-click the file
+```
+
+Generates a self-contained `dashboard.html` (no server, works offline) summarizing:
+- decision counts (buy/sell/hold, executed/dry-run)
+- a timeline of every decision
+- a live account/positions snapshot (if `SAXO_TOKEN` is still valid)
+- the full decision log with rationale
+
+Regenerate it any time after new runs to see the latest state. `dashboard.html` itself is
+gitignored (it can contain live account data) — only the generator script is committed.
+
 ## First-run checklist
 
 Saxo's API surface can differ slightly from what's documented here depending on account type

@@ -149,12 +149,16 @@ def render_table(decisions: list[dict]) -> str:
             if d.get("executed")
             else '<span class="badge badge-dry">dry-run</span>'
         )
+        qty_display = str(dec.get("quantity", ""))
+        requested = d.get("model_requested_quantity")
+        if requested is not None:
+            qty_display += f" (model asked for {requested})"
         rows.append(f"""
         <tr>
           <td class="mono">{html.escape(d.get("timestamp", ""))}</td>
           <td><span class="dot" style="background:{color}"></span>{html.escape(action.upper())}</td>
           <td>{html.escape(dec.get("symbol", ""))}</td>
-          <td class="mono">{html.escape(str(dec.get("quantity", "")))}</td>
+          <td class="mono">{html.escape(qty_display)}</td>
           <td>{executed_badge}</td>
           <td class="rationale">{html.escape(dec.get("rationale", ""))}</td>
         </tr>""")

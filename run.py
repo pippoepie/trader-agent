@@ -79,6 +79,9 @@ def main() -> int:
         return 1
 
     quantity = clamp_quantity(decision["quantity"], config.max_order_quantity)
+    if quantity != decision["quantity"]:
+        entry["model_requested_quantity"] = decision["quantity"]
+        decision["quantity"] = quantity
     if quantity <= 0:
         print(f"Decision quantity clamped to 0 — nothing to do. Rationale: {decision['rationale']}")
         log_entry(entry)

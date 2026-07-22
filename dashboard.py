@@ -394,7 +394,7 @@ def build_html(decisions: list[dict], stats: dict, snapshot: dict | None, equity
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="refresh" content="60">
+<meta http-equiv="refresh" content="900">
 <title>Trader Agent Dashboard</title>
 <style>
   .viz-root {{
@@ -482,7 +482,7 @@ def build_html(decisions: list[dict], stats: dict, snapshot: dict | None, equity
     <header>
       <div>
         <h1>Trader Agent Dashboard</h1>
-        <div class="meta">Generated {generated_at} · auto-refreshes every 60s</div>
+        <div class="meta">Generated {generated_at} · auto-refreshes every 15 min, in sync with the trading cycle</div>
       </div>
       <button class="theme-toggle" onclick="toggleTheme()">Toggle theme</button>
     </header>

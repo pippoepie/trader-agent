@@ -94,23 +94,14 @@ To stop it:
 launchctl unload ~/Library/LaunchAgents/com.traderagent.autorun.plist
 ```
 
-### Keeping the dashboard actually live
+### Dashboard refresh cadence
 
-`dashboard.html` auto-refreshes every 60 seconds in the browser (`<meta http-equiv="refresh">`) —
-but that only reloads whatever is currently on disk. Without a second job, the file itself only
-changes every 15 minutes (whenever `automate.sh` runs), so the profit tracker looks static most of
-the time. A separate `com.traderagent.dashboardrefresh.plist` runs **only** `dashboard.py` (no
-Claude call, no trade — just re-reads Saxo balance/positions/quotes) every 60 seconds, matching the
-page's own refresh interval:
-
-```bash
-cp com.traderagent.dashboardrefresh.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.traderagent.dashboardrefresh.plist
-```
-
-This is lower-stakes than the trading job (it never places an order), but it's still a persistent
-background job hitting Saxo's API every minute, so it's opt-in the same way. Output goes to
-`dashboard_refresh.log`. To stop it: `launchctl unload ~/Library/LaunchAgents/com.traderagent.dashboardrefresh.plist`.
+`dashboard.html` auto-refreshes itself in the browser (`<meta http-equiv="refresh" content="900">`)
+every 15 minutes — matching `automate.sh`'s own cycle, since `dashboard.py` runs right after
+`run.py --execute` in the same job. There's no separate faster job: the profit tracker updates
+exactly when the trading cycle does, nothing in between. If you want to see the very latest state
+sooner than that, just run `python3 dashboard.py` yourself, or open `dashboard.html` after checking
+`automation.log` shows a fresh cycle.
 
 Note: `equity_history.jsonl` grows by one line every time `dashboard.py` runs, so with this job
 installed that's roughly one snapshot per minute instead of one per 15 minutes — harmless for a

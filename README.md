@@ -26,12 +26,18 @@ Get an API key from https://console.anthropic.com/settings/keys.
 ## 3. Configure
 
 ```bash
-cd saxo_trading_agent
+cd trader-agent
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 # edit .env: paste SAXO_TOKEN and ANTHROPIC_API_KEY, adjust WATCHLIST
 ```
+
+**Important — SIM only gives real market data for Forex.** Saxo's own docs confirm equities/ETFs
+always return `NoAccess` for bid/ask in the simulation environment (there's no setting that fixes
+this short of linking to a live account). The default `WATCHLIST` is therefore Forex pairs
+(`EURUSD,USDJPY,GBPUSD`) with `ASSET_TYPE=FxSpot` — that's what actually gets tradable quotes today.
+If you switch `ASSET_TYPE` to `Stock` you'll be back to `NoAccess` quotes and the agent will always hold.
 
 ## 4. Run
 
@@ -80,3 +86,5 @@ and API version changes. The first time you run this, check in order:
 - **Risk controls are minimal.** `risk.py` only clamps quantity and enforces the watchlist —
   no daily-loss limits, no max-open-positions check. Extend before trusting it with anything
   beyond small SIM trades.
+- **FX position sizing.** `MAX_ORDER_QUANTITY` is in currency units, not "shares" — Saxo's typical
+  FxSpot minimum is around 1,000 units. Don't reuse a stock-sized quantity cap for FX.

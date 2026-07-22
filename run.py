@@ -42,12 +42,12 @@ def main() -> int:
         quotes = {}
         instruments = {}
         for symbol in config.watchlist:
-            instrument = saxo.search_instrument(symbol)
+            instrument = saxo.search_instrument(symbol, asset_type=config.asset_type)
             if instrument is None:
                 print(f"Warning: no instrument found for {symbol}, skipping.", file=sys.stderr)
                 continue
             instruments[symbol] = instrument
-            quotes[symbol] = saxo.get_quote(instrument["Identifier"])
+            quotes[symbol] = saxo.get_quote(instrument["Identifier"], asset_type=config.asset_type)
     except SaxoError as e:
         print(f"Saxo API error while fetching data: {e}", file=sys.stderr)
         return 1
@@ -100,8 +100,10 @@ def main() -> int:
         return 0
 
     try:
-        account_key = account["AccountKey"]
-        order_result = saxo.place_order(account_key, instrument["Identifier"], buy_sell, quantity)
+        account_key = account["Data"][0]["AccountKey"]
+        order_result = saxo.place_order(
+            account_key, instrument["Identifier"], buy_sell, quantity, asset_type=config.asset_type
+        )
         print("Order placed:", json.dumps(order_result, indent=2))
         entry["executed"] = True
         entry["order_result"] = order_result

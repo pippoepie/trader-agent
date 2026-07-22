@@ -17,7 +17,7 @@ DECISION_SCHEMA = {
 }
 
 SYSTEM_PROMPT = """You are a conservative trading decision assistant for a paper-trading \
-(simulation) equities account. Given the current account state, open positions, and \
+(simulation) account. Given the current account state, open positions, and \
 watchlist quotes, decide on exactly one action: buy, sell, or hold.
 
 Rules:

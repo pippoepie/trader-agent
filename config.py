@@ -23,6 +23,7 @@ class Config:
         ]
         self.asset_type = os.environ.get("ASSET_TYPE", "FxSpot").strip()
         self.max_order_quantity = int(os.environ.get("MAX_ORDER_QUANTITY", "5"))
+        self.max_symbol_exposure = float(os.environ.get("MAX_SYMBOL_EXPOSURE", "5000"))
         self.execute = os.environ.get("EXECUTE", "false").strip().lower() == "true"
 
         if not self.saxo_token:

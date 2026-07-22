@@ -116,8 +116,10 @@ and API version changes. The first time you run this, check in order:
   of the risk controls in `risk.py` — treat that as a deliberate, separate decision, not a config flip.
 - **`run.py`/`dashboard.py` themselves are single-cycle** — `automate.sh` + the launchd job (see
   §6) is what adds scheduling on top; there's no built-in polling loop inside the Python code itself.
-- **Risk controls are minimal.** `risk.py` only clamps quantity and enforces the watchlist —
-  no daily-loss limits, no max-open-positions check. Extend before trusting it with anything
-  beyond small SIM trades.
+- **Risk controls are still basic.** `risk.py` clamps per-order quantity, enforces the
+  watchlist, and caps total exposure per symbol (`MAX_SYMBOL_EXPOSURE`, buy-only — selling to
+  close is never blocked) — but there's still no daily-loss limit and no cap on the number of
+  *distinct* symbols/positions open at once. Extend before trusting it with anything beyond
+  small SIM trades.
 - **FX position sizing.** `MAX_ORDER_QUANTITY` is in currency units, not "shares" — Saxo's typical
   FxSpot minimum is around 1,000 units. Don't reuse a stock-sized quantity cap for FX.

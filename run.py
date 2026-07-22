@@ -4,8 +4,8 @@ import sys
 from datetime import datetime, timezone
 
 from config import Config, ConfigError
-from decision import build_prompt, get_decision
-from risk import clamp_quantity, is_symbol_allowed
+from decision import build_prompt, get_decision, summarize_positions
+from risk import clamp_quantity, clamp_to_exposure_cap, is_symbol_allowed, total_exposure
 from saxo_client import SaxoClient, SaxoError
 
 LOG_PATH = "decisions.jsonl"
@@ -78,12 +78,19 @@ def main() -> int:
         log_entry(entry)
         return 1
 
-    quantity = clamp_quantity(decision["quantity"], config.max_order_quantity)
-    if quantity != decision["quantity"]:
-        entry["model_requested_quantity"] = decision["quantity"]
-        decision["quantity"] = quantity
+    original_requested_quantity = decision["quantity"]
+    quantity = clamp_quantity(original_requested_quantity, config.max_order_quantity)
+
+    if decision["action"] == "buy":
+        existing_exposure = total_exposure(summarize_positions(positions), symbol)
+        quantity = clamp_to_exposure_cap(existing_exposure, quantity, config.max_symbol_exposure)
+
+    if quantity != original_requested_quantity:
+        entry["model_requested_quantity"] = original_requested_quantity
+    decision["quantity"] = quantity
+
     if quantity <= 0:
-        print(f"Decision quantity clamped to 0 — nothing to do. Rationale: {decision['rationale']}")
+        print(f"Decision quantity clamped to 0 (order/exposure limits) — nothing to do. Rationale: {decision['rationale']}")
         log_entry(entry)
         return 0
 

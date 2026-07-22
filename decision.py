@@ -36,6 +36,12 @@ a position rather than partially reduce it, set "quantity" to at least the posit
 "amount".
 - "rationale" must briefly explain the reasoning in plain language, and should say explicitly \
 whether an existing position was considered and why it was kept, closed, or reduced.
+- Don't over-concentrate in a single symbol. You only get one action per cycle, so don't spend \
+every cycle managing or adding to whichever symbol you already hold — before doing that, check \
+whether any watchlist symbol currently has zero open exposure. If one does, and its quote data \
+gives a reasonable basis for a position, prefer opening there over further adding to a symbol \
+you're already exposed to. Managing an existing position is only the right call when it clearly \
+needs attention (meaningful loss, or a genuinely better opportunity to add) — not by default.
 - If action is "hold", set symbol to the watchlist symbol you considered and quantity to 0."""
 
 
@@ -64,6 +70,13 @@ def build_prompt(account: dict, positions: dict, quotes: dict[str, dict]) -> str
         lines.append(json.dumps(position_summaries, indent=2))
     else:
         lines.append("None.")
+
+    exposed_symbols = {p["symbol"].strip().upper() for p in position_summaries if p.get("symbol")}
+    unexposed = [s for s in quotes if s.strip().upper() not in exposed_symbols]
+    lines.append(
+        f"\nWatchlist symbols with ZERO current exposure: {', '.join(unexposed) if unexposed else 'none — all watchlist symbols already have a position'}."
+    )
+
     lines.append("\n## Watchlist Quotes")
     for symbol, quote in quotes.items():
         lines.append(f"\n### {symbol}")

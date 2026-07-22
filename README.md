@@ -69,6 +69,34 @@ Regenerate it any time after new runs to see the latest state — running it mor
 each `run.py` cycle) builds a denser P&L trend. `dashboard.html` and `equity_history.jsonl` are
 both gitignored (they can contain live account data) — only the generator script is committed.
 
+## 6. Automation (runs unattended, auto-executes trades)
+
+`automate.sh` runs one full cycle (`run.py --execute` then `dashboard.py`) and appends output to
+`automation.log`. A `com.traderagent.autorun.plist` is provided for macOS's `launchd` scheduler,
+set to run every 15 minutes. **This means it will autonomously place real SIM orders with no human
+review, on a schedule, indefinitely** — that's a meaningfully bigger step than running `run.py`
+yourself, so installing it is a deliberate action you take, not something done for you:
+
+```bash
+cp com.traderagent.autorun.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.traderagent.autorun.plist
+```
+
+Check `automation.log` (and `launchd_stdout.log` / `launchd_stderr.log`) periodically — nothing
+alerts you if a cycle fails.
+
+**The 24-hour token limit still applies.** `SAXO_TOKEN` expires roughly once a day; once it does,
+every scheduled cycle will fail (visible in `automation.log`) until you paste in a fresh token.
+There's no notification — check the log yourself, or accept it'll silently stop trading until you do.
+
+To stop it:
+```bash
+launchctl unload ~/Library/LaunchAgents/com.traderagent.autorun.plist
+```
+
+`dashboard.html` auto-refreshes every 60 seconds in the browser, so an open tab stays live as
+`automate.sh` regenerates it in the background.
+
 ## First-run checklist
 
 Saxo's API surface can differ slightly from what's documented here depending on account type
@@ -86,7 +114,8 @@ and API version changes. The first time you run this, check in order:
   OAuth2 Authorization Code flow (documented at developer.saxo) if you want that.
 - **No live trading path.** Switching to Saxo's live environment would require your own review
   of the risk controls in `risk.py` — treat that as a deliberate, separate decision, not a config flip.
-- **Single-cycle, not a daemon.** Run manually or via cron; there's no built-in polling loop.
+- **`run.py`/`dashboard.py` themselves are single-cycle** — `automate.sh` + the launchd job (see
+  §6) is what adds scheduling on top; there's no built-in polling loop inside the Python code itself.
 - **Risk controls are minimal.** `risk.py` only clamps quantity and enforces the watchlist —
   no daily-loss limits, no max-open-positions check. Extend before trusting it with anything
   beyond small SIM trades.

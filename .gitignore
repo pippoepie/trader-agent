@@ -11,3 +11,6 @@ venv/
 decisions.jsonl
 dashboard.html
 equity_history.jsonl
+automation.log
+launchd_stdout.log
+launchd_stderr.log

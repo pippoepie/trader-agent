@@ -10,3 +10,4 @@ venv/
 # Runtime output
 decisions.jsonl
 dashboard.html
+equity_history.jsonl

@@ -30,6 +30,9 @@ class SaxoClient:
     def get_positions(self) -> dict:
         return self._request("GET", "/port/v1/positions/me")
 
+    def get_balance(self) -> dict:
+        return self._request("GET", "/port/v1/balances/me")
+
     def search_instrument(self, keyword: str, asset_type: str = "Stock") -> dict | None:
         data = self._request(
             "GET",

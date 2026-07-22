@@ -59,11 +59,15 @@ open dashboard.html   # macOS; or just double-click the file
 Generates a self-contained `dashboard.html` (no server, works offline) summarizing:
 - decision counts (buy/sell/hold, executed/dry-run)
 - a timeline of every decision
-- a live account/positions snapshot (if `SAXO_TOKEN` is still valid)
+- **a profit tracker** — unrealized P&L, total account value, cash balance, and a P&L trend
+  line (built from a snapshot recorded to `equity_history.jsonl` every time you run
+  `dashboard.py` — the trend line needs at least 2 runs to appear)
+- a live account/positions snapshot (if `SAXO_TOKEN` is still valid), including per-position P&L
 - the full decision log with rationale
 
-Regenerate it any time after new runs to see the latest state. `dashboard.html` itself is
-gitignored (it can contain live account data) — only the generator script is committed.
+Regenerate it any time after new runs to see the latest state — running it more often (e.g. after
+each `run.py` cycle) builds a denser P&L trend. `dashboard.html` and `equity_history.jsonl` are
+both gitignored (they can contain live account data) — only the generator script is committed.
 
 ## First-run checklist
 

@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DECISIONS_PATH = "decisions.jsonl"
+EQUITY_PATH = "equity_history.jsonl"
 OUTPUT_PATH = "dashboard.html"
 
 STATUS_GOOD = "#0ca30c"
@@ -48,14 +49,50 @@ def fetch_live_snapshot() -> dict | None:
         return None
     base_url = os.environ.get("SAXO_BASE_URL", "https://gateway.saxobank.com/sim/openapi").rstrip("/")
     try:
-        from saxo_client import SaxoClient, SaxoError
+        from saxo_client import SaxoClient
 
         client = SaxoClient(base_url, token)
         account = client.get_account()
         positions = client.get_positions()
-        return {"account": account, "positions": positions}
+        try:
+            balance = client.get_balance()
+        except Exception:
+            balance = None
+        return {"account": account, "positions": positions, "balance": balance}
     except Exception:
         return None
+
+
+def record_equity_snapshot(snapshot: dict | None) -> None:
+    if not snapshot or not snapshot.get("balance"):
+        return
+    balance = snapshot["balance"]
+    entry = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "total_value": balance.get("TotalValue"),
+        "unrealized_pl": balance.get("UnrealizedMarginProfitLoss"),
+        "cash_balance": balance.get("CashBalance"),
+        "currency": balance.get("Currency", ""),
+    }
+    with open(EQUITY_PATH, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def load_equity_history() -> list[dict]:
+    if not os.path.exists(EQUITY_PATH):
+        return []
+    entries = []
+    with open(EQUITY_PATH) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    entries.sort(key=lambda e: e.get("timestamp", ""))
+    return entries
 
 
 def compute_stats(decisions: list[dict]) -> dict:
@@ -136,6 +173,130 @@ def render_timeline(decisions: list[dict]) -> str:
     </svg>"""
 
 
+def format_signed(value, currency: str = "") -> str:
+    sign = "+" if value >= 0 else ""
+    text = f"{sign}{value:,.2f}"
+    return f"{text} {currency}".strip()
+
+
+def render_pl_chart(history: list[dict]) -> str:
+    if not history:
+        return (
+            '<div class="empty">No equity snapshots yet — each time you run '
+            '<code>dashboard.py</code> with a valid SAXO_TOKEN, a snapshot is recorded here. '
+            "Run it a few more times (e.g. after each <code>run.py</code> cycle) to build a trend.</div>"
+        )
+
+    paired = []
+    for h in history:
+        pl = h.get("unrealized_pl")
+        ts = h.get("timestamp")
+        if pl is None or not ts:
+            continue
+        try:
+            t = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        paired.append((t, pl))
+
+    if len(paired) < 2:
+        if paired:
+            t, pl = paired[0]
+            currency = history[-1].get("currency", "")
+            return (
+                f'<div class="empty">Only one snapshot so far: {format_signed(pl, currency)}. '
+                "Run <code>python dashboard.py</code> again later (after more trading cycles) "
+                "to start building a P&amp;L trend line.</div>"
+            )
+        return '<div class="empty">No valid equity snapshots to plot yet.</div>'
+
+    t_min = min(t for t, _ in paired)
+    t_max = max(t for t, _ in paired)
+    span = (t_max - t_min).total_seconds() or 1
+
+    pl_values = [pl for _, pl in paired]
+    pl_min, pl_max = min(0, *pl_values), max(0, *pl_values)
+    pl_range = (pl_max - pl_min) or 1
+    pl_min -= pl_range * 0.15
+    pl_max += pl_range * 0.15
+    pl_range = pl_max - pl_min
+
+    width, height, pad = 900, 180, 44
+    plot_w = width - 2 * pad
+    plot_h = height - 2 * pad
+
+    def x_for(t):
+        frac = (t - t_min).total_seconds() / span
+        return pad + frac * plot_w
+
+    def y_for(pl):
+        frac = (pl - pl_min) / pl_range
+        return pad + plot_h - frac * plot_h
+
+    zero_y = y_for(0)
+    latest_pl = paired[-1][1]
+    latest_currency = history[-1].get("currency", "")
+    line_color = STATUS_GOOD if latest_pl >= 0 else STATUS_CRITICAL
+
+    points = [(x_for(t), y_for(pl)) for t, pl in paired]
+    polyline_points = " ".join(f"{x:.1f},{y:.1f}" for x, y in points)
+
+    dots = []
+    for (t, pl), (x, y) in zip(paired, points):
+        tooltip = html.escape(f"{t.strftime('%Y-%m-%d %H:%M UTC')} · {format_signed(pl, latest_currency)}")
+        dots.append(
+            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="5" fill="{line_color}" '
+            f'stroke="var(--surface-1)" stroke-width="2" class="dot-mark" '
+            f'data-tooltip="{tooltip}"><title>{tooltip}</title></circle>'
+        )
+
+    end_x, end_y = points[-1]
+    end_label = html.escape(format_signed(latest_pl, latest_currency))
+    axis_label_start = html.escape(t_min.strftime("%Y-%m-%d %H:%M"))
+    axis_label_end = html.escape(t_max.strftime("%Y-%m-%d %H:%M"))
+
+    return f"""
+    <svg viewBox="0 0 {width} {height}" class="timeline-svg" role="img" aria-label="Unrealized profit and loss over time">
+      <line x1="{pad}" y1="{zero_y:.1f}" x2="{width - pad}" y2="{zero_y:.1f}" class="baseline" />
+      <polyline points="{polyline_points}" fill="none" stroke="{line_color}" stroke-width="2" \
+stroke-linejoin="round" stroke-linecap="round" />
+      {"".join(dots)}
+      <text x="{end_x:.1f}" y="{end_y - 12:.1f}" class="axis-label pl-end-label" text-anchor="end">{end_label}</text>
+      <text x="{pad}" y="{height - 10}" class="axis-label">{axis_label_start}</text>
+      <text x="{width - pad}" y="{height - 10}" class="axis-label" text-anchor="end">{axis_label_end}</text>
+    </svg>"""
+
+
+def render_profit_tracker(snapshot: dict | None, history: list[dict]) -> str:
+    if not snapshot or not snapshot.get("balance"):
+        return (
+            '<div class="empty">Live account data unavailable (no SAXO_TOKEN, expired token, '
+            "or the balances request failed) — profit tracking needs a working Saxo connection.</div>"
+        )
+
+    balance = snapshot["balance"]
+    currency = balance.get("Currency", "")
+    unrealized = balance.get("UnrealizedMarginProfitLoss")
+    total_value = balance.get("TotalValue")
+    cash_balance = balance.get("CashBalance")
+
+    pl_color = None
+    if unrealized is not None:
+        pl_color = STATUS_GOOD if unrealized >= 0 else STATUS_CRITICAL
+
+    tiles = "".join([
+        stat_tile(
+            "Unrealized P&L",
+            format_signed(unrealized, currency) if unrealized is not None else "—",
+            pl_color,
+        ),
+        stat_tile("Total account value", f"{total_value:,.2f} {currency}" if total_value is not None else "—"),
+        stat_tile("Cash balance", f"{cash_balance:,.2f} {currency}" if cash_balance is not None else "—"),
+    ])
+
+    return f'<div class="tiles">{tiles}</div>{render_pl_chart(history)}'
+
+
 def render_table(decisions: list[dict]) -> str:
     if not decisions:
         return ""
@@ -191,23 +352,32 @@ def render_positions(snapshot: dict | None) -> str:
         rows = []
         for p in positions_data:
             base = p.get("PositionBase", {})
+            view = p.get("PositionView", {})
+            pl = view.get("ProfitLossOnTradeInBaseCurrency")
+            pl_cell = (
+                f'<span style="color:{STATUS_GOOD if pl >= 0 else STATUS_CRITICAL}">{format_signed(pl)}</span>'
+                if pl is not None
+                else "—"
+            )
             rows.append(f"""
             <tr>
               <td>{html.escape(str(base.get("Uic", "")))}</td>
               <td>{html.escape(base.get("AssetType", ""))}</td>
               <td class="mono">{html.escape(str(base.get("Amount", "")))}</td>
               <td class="mono">{html.escape(str(base.get("OpenPrice", "")))}</td>
+              <td class="mono">{html.escape(str(view.get("CurrentPrice", "—")))}</td>
+              <td class="mono">{pl_cell}</td>
             </tr>""")
         pos_table = f"""
         <table class="log-table">
-          <thead><tr><th>Uic</th><th>Asset type</th><th>Amount</th><th>Open price</th></tr></thead>
+          <thead><tr><th>Uic</th><th>Asset type</th><th>Amount</th><th>Open price</th><th>Current price</th><th>P&amp;L</th></tr></thead>
           <tbody>{"".join(rows)}</tbody>
         </table>"""
 
     return f'<div class="tiles">{tiles}</div>{pos_table}'
 
 
-def build_html(decisions: list[dict], stats: dict, snapshot: dict | None) -> str:
+def build_html(decisions: list[dict], stats: dict, snapshot: dict | None, equity_history: list[dict]) -> str:
     generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     kpi_tiles = "".join([
@@ -290,6 +460,7 @@ def build_html(decisions: list[dict], stats: dict, snapshot: dict | None) -> str
   .timeline-svg {{ width: 100%; height: auto; }}
   .baseline {{ stroke: var(--baseline); stroke-width: 1; }}
   .axis-label {{ fill: var(--text-muted); font-size: 11px; }}
+  .pl-end-label {{ fill: var(--text-primary); font-size: 13px; font-weight: 600; }}
   .dot-mark {{ cursor: pointer; }}
   .legend {{ display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-top: 8px; }}
   .legend span {{ display: inline-flex; align-items: center; gap: 6px; }}
@@ -318,6 +489,11 @@ def build_html(decisions: list[dict], stats: dict, snapshot: dict | None) -> str
     <div class="card">
       <h2>Summary</h2>
       <div class="tiles">{kpi_tiles}</div>
+    </div>
+
+    <div class="card">
+      <h2>Profit tracker</h2>
+      {render_profit_tracker(snapshot, equity_history)}
     </div>
 
     <div class="card">
@@ -356,10 +532,12 @@ def main():
     decisions = load_decisions()
     stats = compute_stats(decisions)
     snapshot = fetch_live_snapshot()
-    html_out = build_html(decisions, stats, snapshot)
+    record_equity_snapshot(snapshot)
+    equity_history = load_equity_history()
+    html_out = build_html(decisions, stats, snapshot, equity_history)
     with open(OUTPUT_PATH, "w") as f:
         f.write(html_out)
-    print(f"Wrote {OUTPUT_PATH} ({stats['total']} decisions logged).")
+    print(f"Wrote {OUTPUT_PATH} ({stats['total']} decisions logged, {len(equity_history)} equity snapshots).")
 
 
 if __name__ == "__main__":
